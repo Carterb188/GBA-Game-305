@@ -14,7 +14,11 @@
 #include "character.h"
 
 /* include the tile map we are using */
+
 #include "background.h"
+
+#include "background2.h"
+#define END_OF_FIRST_BACKGROUND 80
 
 /* the tile mode flags needed for display control register */
 #define MODE0 0x00
@@ -150,6 +154,10 @@ void setup_background() {
 
     /* load the tile data into screen block 16 */
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background, background_width * background_height);
+}
+
+void setup_background2() {
+    memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background2, background2_width * background2_height);
 }
 
 /* just kill time */
@@ -471,6 +479,7 @@ unsigned short tile_lookup(int x, int y, int xscroll, int yscroll,
     return tilemap[index + offset];
 }
 
+
 /* update the koopa */
 /* update the character */
 void character_update(struct Character* character, int xscroll) {
@@ -562,6 +571,12 @@ int main() {
         if (button_pressed(BUTTON_A)) {
             character_jump(&character);
         }
+
+        if (xscroll >= END_OF_FIRST_BACKGROUND) {
+    setup_background2();
+    xscroll = 0; // Reset the scroll position for the new background
+}
+
 
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
