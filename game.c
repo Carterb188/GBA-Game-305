@@ -7,6 +7,8 @@
 #define SCREEN_HEIGHT 160
 #define SOLID_TILE_INDEX 10
 #define CHARACTER_SPRITE_HEIGHT 32
+#define CHARACTER_SPRITE_WIDTH 10 
+#define TRANSITION_X_POSITION 200 
 /* include the background image we are using */
 #include "tiles.h"
 
@@ -18,7 +20,7 @@
 #include "background.h"
 
 #include "background2.h"
-#define END_OF_FIRST_BACKGROUND 80
+#define END_OF_FIRST_BACKGROUND 32
 
 /* the tile mode flags needed for display control register */
 #define MODE0 0x00
@@ -38,6 +40,8 @@ volatile unsigned short* bg0_control = (volatile unsigned short*) 0x4000008;
 
 /* there are 128 sprites on the GBA */
 #define NUM_SPRITES 128
+int current_background = 1; // 1 for first background, 2 for second
+int transition_point = END_OF_FIRST_BACKGROUND; // x position for screen transition
 
 /* the display control pointer points to the gba graphics register */
 volatile unsigned long* display_control = (volatile unsigned long*) 0x4000000;
@@ -398,6 +402,9 @@ int character_right(struct Character* character) {
     character->move = 1;
 
     /* if we are at the right end, just scroll the screen */
+    if (current_background == 2 && character->x >= SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH) {
+        return 0; // Prevent moving right beyond the screen
+    }
     if (character->x > (SCREEN_WIDTH - 16 - character->border)) {
         return 1;
     } else {
@@ -533,6 +540,8 @@ int main() {
     /* we set the mode to mode 0 with bg0 on */
     *display_control = MODE0 | BG0_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
 
+    
+  
     /* setup the background 0 */
     setup_background();
 
@@ -546,37 +555,48 @@ int main() {
     struct Character character;
     character_init(&character);
 
-    /* set initial scroll to 0 */
+    /* Loop variables */
     int xscroll = 0;
+    int currentBackground = 0; // 0 for first background, 1 for second
+    int MAX_SCROLL_FIRST_BACKGROUND = 30;
 
     /* loop forever */
     while (1) {
-        /* update the koopa */
-        character_update(&character, xscroll);
-
-        /* now the arrow keys move the koopa */
+        /* Character movement */
         if (button_pressed(BUTTON_RIGHT)) {
-            if (character_right(&character)) {
+            if (character_right(&character) && xscroll < MAX_SCROLL_FIRST_BACKGROUND) {
                 xscroll++;
             }
         } else if (button_pressed(BUTTON_LEFT)) {
-            if (character_left(&character)) {
+            if (character_left(&character) && xscroll > 0) {
                 xscroll--;
             }
         } else {
             character_stop(&character);
         }
 
-        /* check for jumping */
+        /* Check for jumping */
         if (button_pressed(BUTTON_A)) {
             character_jump(&character);
         }
 
-        if (xscroll >= END_OF_FIRST_BACKGROUND) {
-    setup_background2();
-    xscroll = 0; // Reset the scroll position for the new background
-}
+        /* Background transition logic */
+        if (currentBackground == 0 && xscroll >= MAX_SCROLL_FIRST_BACKGROUND) {
+            // Transition to the second background
+            xscroll = 0;
+            currentBackground = 1;
+            // Reset character position at the left of the screen
+            setup_background2();
+        } else if (currentBackground == 1 && xscroll <= 0) {
+            // Transition back to the first background
+            xscroll = MAX_SCROLL_FIRST_BACKGROUND;
+            currentBackground = 0;
+            character.x = TRANSITION_X_POSITION - CHARACTER_SPRITE_WIDTH; // Position character near the transition point
+            setup_background();
+        }
 
+        /* Update character and scroll */
+        character_update(&character, xscroll);
 
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
@@ -587,4 +607,3 @@ int main() {
         delay(300);
     }
 }
-
