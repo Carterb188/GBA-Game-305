@@ -368,6 +368,9 @@ struct Character {
 
     /* if the koopa is currently falling */
     int falling;
+
+    /*number of jumps left*/
+    int jumps;
 };
 
 /* initialize the koopa */
@@ -383,6 +386,7 @@ void character_init(struct Character* character) {
     character->falling = 0;
     character->animation_delay = 8;
     character->sprite = sprite_init(character->x, character->y, SIZE_16_32, 0, 0, character->frame, 0);
+    character->jumps = 10;
 }
 
 /* move the koopa left or right returns if it is at edge of the screen */
@@ -448,6 +452,7 @@ void character_jump(struct Character* character) {
     if (!character->falling) {
         character->yvel = -1350;
         character->falling = 1;
+        character->jumps--;
     }
 }
 
@@ -572,7 +577,7 @@ int main() {
     character_init(&character);
 
     /* loop forever */
-    while (1) {
+    while (character.jumps >= 0) {
         /* Character movement */
         if (button_pressed(BUTTON_RIGHT)) {
             if (character_right(&character)) {
@@ -628,5 +633,9 @@ int main() {
 
         /* delay some */
         delay(300);
+    }
+    
+    /*end screen area*/
+    while(1) {
     }
 }
