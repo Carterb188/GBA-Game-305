@@ -6,9 +6,13 @@
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 160
 #define SOLID_TILE_INDEX 10
+
 #define CHARACTER_SPRITE_HEIGHT 32
-#define CHARACTER_SPRITE_WIDTH 10 
-#define TRANSITION_X_POSITION 200 
+#define CHARACTER_SPRITE_WIDTH  16
+#define TILE_SIZE 8 // Each tile is 8x8 pixels
+#define BACKGROUND_WIDTH_TILES 32 // Width of the background in tiles
+#define TOTAL_BACKGROUND_WIDTH (BACKGROUND_WIDTH_TILES * TILE_SIZE) // Total width in pixels
+#define MAX_SCROLL (TOTAL_BACKGROUND_WIDTH - SCREEN_WIDTH)
 /* include the background image we are using */
 #include "tiles.h"
 
@@ -20,7 +24,7 @@
 #include "background.h"
 
 #include "background2.h"
-#define END_OF_FIRST_BACKGROUND 32
+#define END_OF_FIRST_BACKGROUND 80
 
 /* the tile mode flags needed for display control register */
 #define MODE0 0x00
@@ -40,8 +44,6 @@ volatile unsigned short* bg0_control = (volatile unsigned short*) 0x4000008;
 
 /* there are 128 sprites on the GBA */
 #define NUM_SPRITES 128
-int current_background = 1; // 1 for first background, 2 for second
-int transition_point = END_OF_FIRST_BACKGROUND; // x position for screen transition
 
 /* the display control pointer points to the gba graphics register */
 volatile unsigned long* display_control = (volatile unsigned long*) 0x4000000;
@@ -64,7 +66,9 @@ volatile unsigned short* buttons = (volatile unsigned short*) 0x04000130;
 /* scrolling registers for backgrounds */
 volatile short* bg0_x_scroll = (unsigned short*) 0x4000010;
 volatile short* bg0_y_scroll = (unsigned short*) 0x4000012;
-
+int xscroll1 = 0; // Scrolling offset for the first background
+int xscroll2 = 0; // Scrolling offset for the second background
+int currentBackground = 0; // 0 for first background, 1 for second
 /* the bit positions indicate each button - the first bit is for A, second for
  * B, and so on, each constant below can be ANDED into the register to get the
  * status of any one button */
@@ -386,6 +390,9 @@ int character_left(struct Character* character) {
     /* face left */
     sprite_set_horizontal_flip(character->sprite, 1);
     character->move = 1;
+    if (currentBackground == 0 && xscroll1 <= 0 && character->x <= character->border) {
+        return 0;  // Prevent moving left at the start of the first background
+    }
 
     /* if we are at the left end, just scroll the screen */
     if (character->x < character->border) {
@@ -397,21 +404,35 @@ int character_left(struct Character* character) {
     }
 }
 int character_right(struct Character* character) {
-    /* face right */
     sprite_set_horizontal_flip(character->sprite, 0);
     character->move = 1;
 
-    /* if we are at the right end, just scroll the screen */
-    if (current_background == 2 && character->x >= SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH) {
-        return 0; // Prevent moving right beyond the screen
+    
+    if (currentBackground == 0) {
+        if (xscroll1 < MAX_SCROLL) {
+   
+            character->x++;
+            return 1;
+        } else if (character->x < (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH)) {
+            
+            character->x++;
+            return 0;
+        }
     }
-    if (character->x > (SCREEN_WIDTH - 16 - character->border)) {
-        return 1;
-    } else {
-        /* else move right */
-        character->x++;
-        return 0;
+
+    
+    if (currentBackground == 1) {
+        if (xscroll2 < MAX_SCROLL) {
+            character->x++;
+            return 1;
+        } else if (character->x < (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH)) {
+            character->x++;
+            return 0;
+        }
     }
+
+    
+    return 0;
 }
 
 /* stop the koopa from walking left/right */
@@ -540,8 +561,6 @@ int main() {
     /* we set the mode to mode 0 with bg0 on */
     *display_control = MODE0 | BG0_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
 
-    
-  
     /* setup the background 0 */
     setup_background();
 
@@ -555,21 +574,24 @@ int main() {
     struct Character character;
     character_init(&character);
 
-    /* Loop variables */
-    int xscroll = 0;
-    int currentBackground = 0; // 0 for first background, 1 for second
-    int MAX_SCROLL_FIRST_BACKGROUND = 30;
-
     /* loop forever */
     while (1) {
         /* Character movement */
         if (button_pressed(BUTTON_RIGHT)) {
-            if (character_right(&character) && xscroll < MAX_SCROLL_FIRST_BACKGROUND) {
-                xscroll++;
+            if (character_right(&character)) {
+                if (currentBackground == 0 && xscroll1 < MAX_SCROLL) {
+                    xscroll1++;
+                } else if (currentBackground == 1) {
+                    xscroll2++;
+                }
             }
         } else if (button_pressed(BUTTON_LEFT)) {
-            if (character_left(&character) && xscroll > 0) {
-                xscroll--;
+            if (character_left(&character)) {
+                if (currentBackground == 0 && xscroll1 > 0) {
+                    xscroll1--;
+                } else if (currentBackground == 1 && xscroll2 > 0) {
+                    xscroll2--;
+                }
             }
         } else {
             character_stop(&character);
@@ -581,26 +603,30 @@ int main() {
         }
 
         /* Background transition logic */
-        if (currentBackground == 0 && xscroll >= MAX_SCROLL_FIRST_BACKGROUND) {
+        if (currentBackground == 0 && character.x >= (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH - character.border)) {
             // Transition to the second background
-            xscroll = 0;
             currentBackground = 1;
-            // Reset character position at the left of the screen
             setup_background2();
-        } else if (currentBackground == 1 && xscroll <= 0) {
+
+            // Reset character position at the left of the screen and scroll for second background
+            character.x = character.border;
+            xscroll2 = 0;
+        } else if (currentBackground == 1 && character.x <= character.border) {
             // Transition back to the first background
-            xscroll = MAX_SCROLL_FIRST_BACKGROUND;
             currentBackground = 0;
-            character.x = TRANSITION_X_POSITION - CHARACTER_SPRITE_WIDTH; // Position character near the transition point
             setup_background();
+
+            // Position character near the right edge and reset scroll for first background
+            character.x = SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH - character.border;
+            xscroll1 = MAX_SCROLL;
         }
 
         /* Update character and scroll */
-        character_update(&character, xscroll);
+        character_update(&character, currentBackground == 0 ? xscroll1 : xscroll2);
 
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
-        *bg0_x_scroll = xscroll;
+        *bg0_x_scroll = currentBackground == 0 ? xscroll1 : xscroll2;
         sprite_update_all();
 
         /* delay some */
