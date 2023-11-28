@@ -518,21 +518,18 @@ void character_update(struct Character* character, int xscroll) {
     }
 
     /* determine the bottom of the character sprite for collision detection */
-    int character_bottom_y = character->y + CHARACTER_SPRITE_HEIGHT; // Replace CHARACTER_SPRITE_HEIGHT with your sprite's height
-
+    int character_bottom_y = character->y + CHARACTER_SPRITE_HEIGHT;
     /* check which tile the character's bottom is over */
     unsigned short tile = tile_lookup(character->x + 8, character_bottom_y + 10, xscroll, 0, background,
                                       background_width, background_height);
 
     /* if it's a solid tile */
-    if (tile == 0) { // Replace SOLID_TILE_INDEX with the index of your solid tile
-        /* stop the fall! */
+    if (tile == 0) {        /* stop the fall! */
         character->falling = 0;
         character->yvel = 0;
 
         /* align the character's bottom with the top of the tile */
-        // Assuming the tiles are 8 pixels high, modify if your tiles have a different height
-        character->y = ((character_bottom_y >> 3) << 3) - CHARACTER_SPRITE_HEIGHT;
+                character->y = ((character_bottom_y >> 3) << 3) - CHARACTER_SPRITE_HEIGHT;
     } else {
         /* the character is falling */
         character->falling = 1;
