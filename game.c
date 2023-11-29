@@ -379,7 +379,7 @@ void character_init(struct Character* character) {
     character->y = 15;
     character->yvel = 0;
     character->gravity = 50;
-    character->border = 40;
+    character->border = 0;
     character->frame = 0;
     character->move = 0;
     character->counter = 0;
@@ -613,7 +613,7 @@ int main() {
             // Reset character position at the left of the screen and scroll for second background
             character.x = character.border;
             xscroll2 = 0;
-        } else if (currentBackground == 1 && character.x <= character.border) {
+        } else if (currentBackground == 1 && character.x < character.border) {
             // Transition back to the first background
             currentBackground = 0;
             setup_background();
