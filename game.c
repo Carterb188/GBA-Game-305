@@ -30,6 +30,25 @@
 #define MODE0 0x00
 #define BG0_ENABLE 0x100
 
+/* the bitmap mode used for the start and end screens */
+#define MODE3 0x0003
+#define BG2 0x0400
+
+/* the .h files needed for the start and end screens */
+#include "START.h"
+#include "A_GRADE.h"
+#include "B_GRADE.h"
+#include "C_GRADE.h"
+#include "D_GRADE.h"
+#include "F_GRADE.h"
+
+/* memory location for the colors of the screen */
+volatile unsigned short* screen = (volatile unsigned short*) 0x6000000;
+
+/* jump counter and game win variables that control which end screen pops up */
+int jump_counter = 0;
+int game_win = 1;
+
 /* flags to set sprite handling in display control register */
 #define SPRITE_MAP_2D 0x0
 #define SPRITE_MAP_1D 0x40
@@ -557,9 +576,20 @@ void character_update(struct Character* character, int xscroll) {
     sprite_position(character->sprite, character->x, character->y);
 }
 
+void put_pixel(int row, int col, unsigned short color) {
+    screen[row * SCREEN_WIDTH + col] = color;
+}
 
 /* the main function */
 int main() {
+    /* display the start screen until the button corresponding to A is pressed */
+    *display_control = MODE3 | BG2;
+    for(int row = 0; row < SCREEN_HEIGHT; row++){
+        for(int col = 0; col < SCREEN_WIDTH; col++){
+            put_pixel(row, col, START_data[row * SCREEN_WIDTH + col]);
+        }
+    }
+    while (*buttons & BUTTON_START) {}
     /* we set the mode to mode 0 with bg0 on */
     *display_control = MODE0 | BG0_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
 
@@ -637,5 +667,47 @@ int main() {
     
     /*end screen area*/
     while(1) {
+        /* shift back into bitmap mode for image display */
+        *display_control = MODE3 | BG2;
+        /* three jumps remaining */
+        if(jump_counter == 3 && game_win){ 
+            for(int row = 0; row < SCREEN_HEIGHT; row++){
+                for(int col = 0; col < SCREEN_WIDTH; col++){
+                    put_pixel(row, col, F_GRADE_data[row * SCREEN_WIDTH + col]);
+                 }
+            }
+        }
+        /*two remaining jumps */
+        else if(jump_counter == 2 && game_win){
+            for(int row = 0; row < SCREEN_HEIGHT; row++){
+                for(int col = 0; col < SCREEN_WIDTH; col++){
+                    put_pixel(row, col, D_GRADE_data[row * SCREEN_WIDTH + col]);
+                 }
+            }
+        } 
+        /*one remaining jump */
+        else if(jump_counter == 1 && game_win){
+            for(int row = 0; row < SCREEN_HEIGHT; row++){
+                for(int col = 0; col < SCREEN_WIDTH; col++){
+                    put_pixel(row, col, C_GRADE_data[row * SCREEN_WIDTH + col]);
+                }
+            }
+        }
+        /* level was completed, but no jumps remain */
+        else if(jump_counter == 0 && game_win){
+            for(int row = 0; row < SCREEN_HEIGHT; row++){
+                for(int col = 0; col < SCREEN_WIDTH; col++){
+                    put_pixel(row, col, B_GRADE_data[row * SCREEN_WIDTH + col]);
+                }
+            }
+        }
+        /* level was failed, assignment was turned in */
+        else{
+            for(int row = 0; row < SCREEN_HEIGHT; row++){
+                for(int col = 0; col < SCREEN_WIDTH; col++){
+                    put_pixel(row, col, A_GRADE_data[row * SCREEN_WIDTH + col]);
+                }
+            }
+        }   
     }
 }
