@@ -1,5 +1,5 @@
-.global jumpcount
-update_jumps:
+.global update_jump
+update_jump:
     str lr, [sp, #-4]!
     CMP r0, #0
     BEQ no_jumps_left
