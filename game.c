@@ -42,9 +42,11 @@ int useJump(int a);
 #include "background2.h"
 #define END_OF_FIRST_BACKGROUND 80
 #include "foreground.h"
+#include "foreground2.h"
 /* the tile mode flags needed for display control register */
 #define MODE0 0x00
 #define BG0_ENABLE 0x100
+#define BG1_ENABLE 0x200
 
 /* the bitmap mode used for the start and end screens */
 #define MODE3 0x0003
@@ -72,6 +74,7 @@ int game_win = 1;
 
 /* the control registers for the four tile layers */
 volatile unsigned short* bg0_control = (volatile unsigned short*) 0x4000008;
+volatile unsigned short* bg1_control = (volatile unsigned short*) 0x400000a;
 
 /* palette is always 256 colors */
 #define PALETTE_SIZE 256
@@ -261,10 +264,20 @@ void setup_background() {
 
     /* load the tile data into screen block 16 */
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background, background_width * background_height);
+    *bg1_control = 0 |
+        (0 << 2) |
+        (0 << 6) |
+        (1 << 7) |
+        (24 << 8) |
+        (1 << 13) |
+        (0 << 14);
+    memcpy16_dma((unsigned short*) screen_block(24), (unsigned short*) foreground, foreground_width * foreground_height);
 }
 
 void setup_background2() {
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background2, background2_width * background2_height);
+    memcpy16_dma((unsigned short*) screen_block(24), (unsigned short*) foreground2, foreground2_width * foreground2_height);
+
 }
 
 /* play a sound with a number of samples, and sample rate on one channel 'A' or 'B' */
@@ -915,7 +928,7 @@ int main() {
 }
 }
     /* we set the mode to mode 0 with bg0 on */
-    *display_control = MODE0 | BG0_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
+    *display_control = MODE0 | BG0_ENABLE | BG1_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
 
     /* setup the background 0 */
     setup_background();
