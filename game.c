@@ -980,6 +980,7 @@ int main() {
             update_jump(&character.jumps);
         }
         }*/
+        check_game_status(&character.jumps, &game_win);
         handle_button_presses(&character);
 
         /* Background transition logic */
