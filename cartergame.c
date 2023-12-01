@@ -2,7 +2,7 @@
  * collide.c
  * program which demonstrates sprites colliding with tiles
  */
-int useJump(int a);
+
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 160
 #define SOLID_TILE_INDEX 10
@@ -12,39 +12,24 @@ int useJump(int a);
 #define TILE_SIZE 8 // Each tile is 8x8 pixels
 #define BACKGROUND_WIDTH_TILES 32 // Width of the background in tiles
 #define TOTAL_BACKGROUND_WIDTH (BACKGROUND_WIDTH_TILES * TILE_SIZE) // Total width in pixels
-#define TIMER_FREQ_1 0x0
-#define TIMER_FREQ_64 0x2
-#define TIMER_FREQ_256 0x3
-#define TIMER_FREQ_1024 0x4
-#define TIMER_ENABLE 0x80
-#define MAX_SCROLL (TOTAL_BACKGROUND_WIDTH - SCREEN_WIDTH)
-#define SOUND_A_RIGHT_CHANNEL 0x100
-#define SOUND_A_LEFT_CHANNEL 0x200
-#define SOUND_A_FIFO_RESET 0x800
-#define SOUND_B_RIGHT_CHANNEL 0x1000
-#define SOUND_B_LEFT_CHANNEL 0x2000
-#define CLOCK 16777216 
-#define CYCLES_PER_BLANK 280806
-#define SOUND_B_FIFO_RESET 0x8000
-#include "thruthefireandflames.h"
-
 #define MAX_SCROLL (TOTAL_BACKGROUND_WIDTH - SCREEN_WIDTH)
 /* include the background image we are using */
 #include "tiles.h"
-#include "intromusic.h"
+
 /* include the sprite image we are using */
 #include "character.h"
 
 /* include the tile map we are using */
-
+#include "foreground.h"
 #include "background.h"
 
 #include "background2.h"
 #define END_OF_FIRST_BACKGROUND 80
-#include "foreground.h"
+
 /* the tile mode flags needed for display control register */
 #define MODE0 0x00
 #define BG0_ENABLE 0x100
+#define BG1_ENABLE 0x200
 
 /* the bitmap mode used for the start and end screens */
 #define MODE3 0x0003
@@ -57,6 +42,7 @@ int useJump(int a);
 #include "C_GRADE.h"
 #include "D_GRADE.h"
 #include "F_GRADE.h"
+
 /* memory location for the colors of the screen */
 volatile unsigned short* screen = (volatile unsigned short*) 0x6000000;
 
@@ -72,6 +58,7 @@ int game_win = 1;
 
 /* the control registers for the four tile layers */
 volatile unsigned short* bg0_control = (volatile unsigned short*) 0x4000008;
+volatile unsigned short* bg1_control = (volatile unsigned short*) 0x400000a;
 
 /* palette is always 256 colors */
 #define PALETTE_SIZE 256
@@ -91,8 +78,7 @@ volatile unsigned short* sprite_image_memory = (volatile unsigned short*) 0x6010
 /* the address of the color palettes used for backgrounds and sprites */
 volatile unsigned short* bg_palette = (volatile unsigned short*) 0x5000000;
 volatile unsigned short* sprite_palette = (volatile unsigned short*) 0x5000200;
-volatile unsigned short* timer0_data = (volatile unsigned short*) 0x4000100;
-volatile unsigned short* timer0_control = (volatile unsigned short*) 0x4000102;
+
 /* the button register holds the bits which indicate whether each button has
  * been pressed - this has got to be volatile as well
  */
@@ -159,27 +145,6 @@ volatile unsigned short* screen_block(unsigned long block) {
 /* flags for the sizes to transfer, 16 or 32 bits */
 #define DMA_16 0x00000000
 #define DMA_32 0x04000000
-/* this causes the DMA destination to be the same each time rather than increment */
-#define DMA_DEST_FIXED 0x400000
-
-/* this causes the DMA to repeat the transfer automatically on some interval */
-#define DMA_REPEAT 0x2000000
-
-/* this causes the DMA repeat interval to be synced with timer 0 */
-#define DMA_SYNC_TO_TIMER 0x30000000
-
-/* pointers to the DMA source/dest locations and control registers */
-volatile unsigned int* dma1_source = (volatile unsigned int*) 0x40000BC;
-volatile unsigned int* dma1_destination = (volatile unsigned int*) 0x40000C0;
-volatile unsigned int* dma1_control = (volatile unsigned int*) 0x40000C4;
-
-volatile unsigned int* dma2_source = (volatile unsigned int*) 0x40000C8;
-volatile unsigned int* dma2_destination = (volatile unsigned int*) 0x40000CC;
-volatile unsigned int* dma2_control = (volatile unsigned int*) 0x40000D0;
-
-volatile unsigned int* dma3_source = (volatile unsigned int*) 0x40000D4;
-volatile unsigned int* dma3_destination = (volatile unsigned int*) 0x40000D8;
-volatile unsigned int* dma3_control = (volatile unsigned int*) 0x40000DC;
 
 /* pointer to the DMA source location */
 volatile unsigned int* dma_source = (volatile unsigned int*) 0x40000D4;
@@ -196,49 +161,6 @@ void memcpy16_dma(unsigned short* dest, unsigned short* source, int amount) {
     *dma_destination = (unsigned int) dest;
     *dma_count = amount | DMA_16 | DMA_ENABLE;
 }
-/* the global interrupt enable register */
-volatile unsigned short* interrupt_enable = (unsigned short*) 0x4000208;
-
-/* this register stores the individual interrupts we want */
-volatile unsigned short* interrupt_selection = (unsigned short*) 0x4000200;
-
-/* this registers stores which interrupts if any occured */
-volatile unsigned short* interrupt_state = (unsigned short*) 0x4000202;
-
-/* the address of the function to call when an interrupt occurs */
-volatile unsigned int* interrupt_callback = (unsigned int*) 0x3007FFC;
-
-/* this register needs a bit set to tell the hardware to send the vblank interrupt */
-volatile unsigned short* display_interrupts = (unsigned short*) 0x4000004;
-
-/* the interrupts are identified by number, we only care about this one */
-#define INTERRUPT_VBLANK 0x1
-
-/* allows turning on and off sound for the GBA altogether */
-volatile unsigned short* master_sound = (volatile unsigned short*) 0x4000084;
-#define SOUND_MASTER_ENABLE 0x80
-
-/* has various bits for controlling the direct sound channels */
-volatile unsigned short* sound_control = (volatile unsigned short*) 0x4000082;
-
-/* bit patterns for the sound control register */
-#define SOUND_A_RIGHT_CHANNEL 0x100
-#define SOUND_A_LEFT_CHANNEL 0x200
-#define SOUND_A_FIFO_RESET 0x800
-#define SOUND_B_RIGHT_CHANNEL 0x1000
-#define SOUND_B_LEFT_CHANNEL 0x2000
-#define SOUND_B_FIFO_RESET 0x8000
-
-/* the location of where sound samples are placed for each channel */
-volatile unsigned char* fifo_buffer_a  = (volatile unsigned char*) 0x40000A0;
-volatile unsigned char* fifo_buffer_b  = (volatile unsigned char*) 0x40000A4;
-
-/* global variables to keep track of how much longer the sounds are to play */
-unsigned int channel_a_vblanks_remaining = 0;
-unsigned int channel_a_total_vblanks = 0;
-unsigned int channel_b_total_vblanks = 0;
-unsigned int channel_b_vblanks_remaining = 0;
-
 
 /* function to setup background 0 for this program */
 void setup_background() {
@@ -250,76 +172,42 @@ void setup_background() {
     memcpy16_dma((unsigned short*) char_block(0), (unsigned short*) tiles_data,
             (tiles_width * tiles_height) / 2);
 
+    /* load the image into char block 1 */
+    memcpy16_dma((unsigned short*) char_block(1), (unsigned short*) character_data,
+            (character_width * character_height) / 2);
+
+
     /* set all control the bits in this register */
-    *bg0_control = 0 |    /* priority, 0 is highest, 3 is lowest */
+    *bg0_control = 3 |    /* priority, 0 is highest, 3 is lowest */
         (0 << 2)  |       /* the char block the image data is stored in */
         (0 << 6)  |       /* the mosaic flag */
         (1 << 7)  |       /* color mode, 0 is 16 colors, 1 is 256 colors */
         (16 << 8) |       /* the screen block the tile data is stored in */
         (1 << 13) |       /* wrapping flag */
         (0 << 14);        /* bg size, 0 is 256x256 */
+   
+
+
+    *bg1_control = 1 |    /* priority, 0 is highest, 3 is lowest */
+        (1 << 2)  |       /* the char block the image data is stored in */
+        (0 << 6)  |       /* the mosaic flag */
+        (1 << 7)  |       /* color mode, 0 is 16 colors, 1 is 256 colors */
+        (15 << 8) |       /* the screen block the tile data is stored in */
+        (1 << 13) |       /* wrapping flag */
+        (0 << 14);        /* bg size, 0 is 256x256 */
 
     /* load the tile data into screen block 16 */
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background, background_width * background_height);
+
+  memcpy16_dma((unsigned short*) screen_block(15), (unsigned short*) foreground, foreground_width * foreground_height);
+
+
 }
 
 void setup_background2() {
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background2, background2_width * background2_height);
 }
 
-/* play a sound with a number of samples, and sample rate on one channel 'A' or 'B' */
-void play_sound(const signed char* sound, int total_samples, int sample_rate, char channel) {
-    /* start by disabling the timer and dma controller (to reset a previous sound) */
-    *timer0_control = 0;
-    if (channel == 'A') {
-        *dma1_control = 0;
-    } else if (channel == 'B') {
-        *dma2_control = 0; 
-    }
-
-    /* output to both sides and reset the FIFO */
-    if (channel == 'A') {
-        *sound_control |= SOUND_A_RIGHT_CHANNEL | SOUND_A_LEFT_CHANNEL | SOUND_A_FIFO_RESET;
-    } else if (channel == 'B') {
-        *sound_control |= SOUND_B_RIGHT_CHANNEL | SOUND_B_LEFT_CHANNEL | SOUND_B_FIFO_RESET;
-    }
-
-    /* enable all sound */
-    *master_sound = SOUND_MASTER_ENABLE;
-
-    /* set the dma channel to transfer from the sound array to the sound buffer */
-    if (channel == 'A') {
-        *dma1_source = (unsigned int) sound;
-        *dma1_destination = (unsigned int) fifo_buffer_a;
-        *dma1_control = DMA_DEST_FIXED | DMA_REPEAT | DMA_32 | DMA_SYNC_TO_TIMER | DMA_ENABLE;
-    } else if (channel == 'B') {
-        *dma2_source = (unsigned int) sound;
-        *dma2_destination = (unsigned int) fifo_buffer_b;
-        *dma2_control = DMA_DEST_FIXED | DMA_REPEAT | DMA_32 | DMA_SYNC_TO_TIMER | DMA_ENABLE;
-    }
-
-    /* set the timer so that it increments once each time a sample is due
-     * we divide the clock (ticks/second) by the sample rate (samples/second)
-     * to get the number of ticks/samples */
-    unsigned short ticks_per_sample = CLOCK / sample_rate;
-
-    /* the timers all count up to 65536 and overflow at that point, so we count up to that
-     * now the timer will trigger each time we need a sample, and cause DMA to give it one! */
-    *timer0_data = 65536 - ticks_per_sample;
-
-    /* determine length of playback in vblanks
-     * this is the total number of samples, times the number of clock ticks per sample,
-     * divided by the number of machine cycles per vblank (a constant) */
-    if (channel == 'A') {
-        channel_a_vblanks_remaining = total_samples * ticks_per_sample * (1.0 / CYCLES_PER_BLANK);
-        channel_a_total_vblanks = channel_a_vblanks_remaining;
-    } else if (channel == 'B') {
-        channel_b_vblanks_remaining = total_samples * ticks_per_sample * (1.0 / CYCLES_PER_BLANK);
-    }
-
-    /* enable the timer */
-    *timer0_control = TIMER_ENABLE | TIMER_FREQ_1;
-}
 /* just kill time */
 void delay(unsigned int amount) {
     for (int i = 0; i < amount * 10; i++);
@@ -522,22 +410,15 @@ struct Character {
     int falling;
 
     /*number of jumps left*/
-    int jumps; // jumps left
-    int hvel; //horizonal velocity
-    int hspWalk; //walk speed
-    int vspJump; //jump speed
-    int mvsp; //max veritcal speed
-    int mhsp; //max horizontal speed
-    int sd; //speed decay
+    int jumps;
 };
 
 /* initialize the koopa */
 void character_init(struct Character* character) {
     character->x = 0;
     character->y = 15;
-    character->jumps = 6;
     character->yvel = 0;
-    character->gravity = 1;
+    character->gravity = 50;
     character->border = 0;
     character->frame = 0;
     character->move = 0;
@@ -546,12 +427,6 @@ void character_init(struct Character* character) {
     character->animation_delay = 8;
     character->sprite = sprite_init(character->x, character->y, SIZE_16_32, 0, 0, character->frame, 0);
     character->jumps = 10;
-    character->hvel = 0;
-    character->hspWalk = 8;
-    character->vspJump = -24;
-    character->mvsp = 24;
-    character->mhsp = 16;
-    character->sd = 1;
 }
 
 /* move the koopa left or right returns if it is at edge of the screen */
@@ -614,11 +489,11 @@ void character_stop(struct Character* character) {
 
 /* start the koopa jumping, unless already fgalling */
 void character_jump(struct Character* character) {
-//    if (!character->falling) {
-//        character->yvel = -1350;
-//        character->falling = 1;
-//        character->jumps = useJump(character->jumps);
-//    }
+    if (!character->falling) {
+        character->yvel = -1350;
+        character->falling = 1;
+        character->jumps--;
+    }
 }
 
 /* finds which tile a screen coordinate maps to, taking scroll into acco  unt */
@@ -725,197 +600,19 @@ void character_update(struct Character* character, int xscroll) {
 void put_pixel(int row, int col, unsigned short color) {
     screen[row * SCREEN_WIDTH + col] = color;
 }
-int update_jump(int *jumps);
-int jumps_remaining = 3;
-/* this function is called each vblank to get the timing of sounds right */
-void on_vblank() {
-    /* disable interrupts for now and save current state of interrupt */
-    *interrupt_enable = 0;
-    unsigned short temp = *interrupt_state;
-
-    /* look for vertical refresh */
-    if ((*interrupt_state & INTERRUPT_VBLANK) == INTERRUPT_VBLANK) {
-
-        /* update channel A */
-        if (channel_a_vblanks_remaining == 0) {
-            /* loop the sound again when it runs out */
-            channel_a_vblanks_remaining = channel_a_total_vblanks;
-            *dma1_control = 0;
-            *dma1_source = (unsigned int) thruthefireandflames;
-            *dma1_control = DMA_DEST_FIXED | DMA_REPEAT | DMA_32 |
-                DMA_SYNC_TO_TIMER | DMA_ENABLE;
-        } else {
-            channel_a_vblanks_remaining--;
-        }
-        if (channel_b_vblanks_remaining == 0) {
-            channel_b_vblanks_remaining = channel_b_total_vblanks; // Set this to the total vblanks for intromusic
-            *dma2_control = 0;
-            *dma2_source = (unsigned int) intromusic;
-            *dma2_control = DMA_DEST_FIXED | DMA_REPEAT | DMA_32 | DMA_SYNC_TO_TIMER | DMA_ENABLE;
-        } else {
-            channel_b_vblanks_remaining--;
-        }
-       
-    }
-
-    /* restore/enable interrupts */
-    *interrupt_state = temp;
-    *interrupt_enable = 1;
-}
-
-
-int place_meeting(struct Character* player, int x, int y) {
-    const unsigned short collide_tiles [] = {
-    0x0000, 0x0001, 0x000e, 0x000f, 0x0024, 0x0025, 0x0032, 0x0033, 0x0026, 
-    0x0027, 0x0034, 0x0035, 0x0028, 0x0029, 0x0036, 0x0037, 0x0040, 0x0041, 
-    0x004e, 0x004f, 0x0044, 0x0045, 0x0052, 0x0053, 0x005c, 0x005d, 0x006a, 
-    0x006b, 0x0060, 0x0061, 0x006e, 0x006f, 0x0070, 0x0071, 0x0072, 0x0073, 
-    0x0074, 0x0075, 0x007e, 0x007f, 0x0080, 0x0081, 0x0074, 0x0075, 0x0082, 
-    0x0083,
-    };
-    
-    for (int i = 0; i < 46; i++) {
-        if (foreground[tile_lookup(player->x + 8 + x, player->y + 32 + y, xscroll1, 0, foreground, foreground_width, foreground_height)] == collide_tiles[i]) {
-            return 1;
-        }
-    }
-    if (background[tile_lookup(player->x + 8 + x, player->y + 32 + y, xscroll1, 0, background, background_width, background_height)] == 0x006a) {
-        return 1;
-    }
-    if (background[tile_lookup(player->x + 8 + x, player->y + 32 + y, xscroll1, 0, background, background_width, background_height)] == 0x006b) {
-        return 1;
-    }
-    return 0;
-}
-
-void handle_button_presses(struct Character* player) {
-    //this fixes if both buttons are pressed at the same time.
-    int walkValue = 0;
-    if (button_pressed(BUTTON_RIGHT)) {
-        walkValue++;
-    } if (button_pressed(BUTTON_LEFT)) {
-        walkValue--;
-    }
-    walkValue *= player->hspWalk;
-
-    if (player->hvel >= player->mhsp) {
-        player->hvel = player->mhsp;
-    }
-    if (-1 * player->hvel <= -1 * player->mhsp) {
-        player->hvel = player->mhsp;
-    }
-    if (button_pressed(BUTTON_RIGHT)) {
-        if (player->hvel + walkValue < player->mhsp) {
-            player->hvel += walkValue;
-        } else {
-            player->hvel += (player->mhsp - player->hvel);
-        }
-    } else if (button_pressed(BUTTON_LEFT)) {
-        if(player->hvel + walkValue > -1 * player->mhsp) {
-            player->hvel += walkValue;
-        } else {
-            player->hvel -+ (player->mhsp + player->hvel);
-        }
-    }
-    if (player->hvel > 0 && player->hvel > player->mhsp) {
-        player->hvel = player->mhsp;
-    } else if (player->hvel < 0 && player->hvel < (-1 * player->mhsp)) {
-        player->hvel = player->mhsp * -1;
-    }
-
-    //speed decay
-    if (player->hvel > 0) {
-        if (player->hvel >= player->sd) {
-            player->hvel -= player->sd;
-        } else {
-            player->hvel -= (player->hvel - player->sd);
-        }
-    } if (player->hvel < 0) {
-        if (-1 * player->hvel >= player->sd) {
-            player->hvel += player->sd;
-        } else {
-            player->hvel += player->hvel + player->sd;
-        }
-    }
-
-    //Work out vertical movement
-    if (!player->falling && button_pressed(BUTTON_A)) { 
-        player->yvel = player->vspJump;
-        player->falling = 1;
-    }
-
-    //collision and movement
-    if (place_meeting(player, player->x + (player->hvel >> 3), player->y)) {
-        if(player->hvel > 1) {
-            while (player->hvel > 1) {
-                player->hvel = player->hvel >> 1;
-                if (!place_meeting(player, player->x + (player->hvel >> 3), player->y)) {
-                    player->x += player->hvel;
-                }
-            }player->hvel = 0;
-        }
-
-        if (player->hvel < 1) {
-            while (player->hvel < 1) {
-                player->hvel = player->hvel >>1;
-                if (!place_meeting(player, player->x + (player->hvel >> 3), player->y)) {
-                    player->x += player->hvel;
-                }
-            } player->hvel = 0;
-        }
-    } player->x += player->hvel >> 3;
-
-    //touching the ground
-    if (place_meeting(player, player->x, player->y + (player->yvel >> 3))) {
-        if (player->yvel > 0) {
-            player->falling = 1;
-        } while (player-> yvel != 0) {
-            if(!place_meeting(player, player->x, player->y + (player-> yvel >> 3))) {
-                player->y += player->yvel;
-            }
-        } player->yvel = 0;
-    } player->y += player->yvel >> 3;
-    if (player->falling) {
-        character_jump(player);
-    } else if (player->hvel == 0) {
-        character_stop(player);
-    } else if (player->hvel > 0) {
-        character_right(player);
-    } else {
-        character_left(player);
-    }
-}
 
 /* the main function */
 int main() {
-   *display_control = MODE3 | BG2;
-    *interrupt_enable = 0;
-     *interrupt_callback = (unsigned int) &on_vblank;
-     *interrupt_selection |= INTERRUPT_VBLANK;
-     *display_interrupts |= 0x08;
-     *interrupt_enable = 1;
-     /* clear the sound control initially */
-     *sound_control = 0;
-     *dma1_control = 0;
-     play_sound(intromusic, intromusic_bytes, 16000, 'B');
-
     /* display the start screen until the button corresponding to A is pressed */
+    *display_control = MODE3 | BG2;
     for(int row = 0; row < SCREEN_HEIGHT; row++){
         for(int col = 0; col < SCREEN_WIDTH; col++){
             put_pixel(row, col, START_data[row * SCREEN_WIDTH + col]);
         }
     }
-    while (1)  {
-        if(channel_b_vblanks_remaining == 0) {
-               play_sound(intromusic, intromusic_bytes, 16000, 'B');
-    }
-
-    if (!(*buttons & BUTTON_START)) {
-        break;
-}
-}
+    while (*buttons & BUTTON_START) {}
     /* we set the mode to mode 0 with bg0 on */
-    *display_control = MODE0 | BG0_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
+    *display_control = MODE0 | BG0_ENABLE | BG1_ENABLE | SPRITE_ENABLE | SPRITE_MAP_1D;
 
     /* setup the background 0 */
     setup_background();
@@ -929,13 +626,11 @@ int main() {
     /* create the koopa */
     struct Character character;
     character_init(&character);
-    /* set the music to play on channel A */
-    play_sound(thruthefireandflames, thruthefireandflames_bytes, 16000, 'A');
 
     /* loop forever */
     while (character.jumps >= 0) {
         /* Character movement */
-        /*if (button_pressed(BUTTON_RIGHT)) {
+        if (button_pressed(BUTTON_RIGHT)) {
             if (character_right(&character)) {
                 if (currentBackground == 0 && xscroll1 < MAX_SCROLL) {
                     xscroll1++;
@@ -953,15 +648,12 @@ int main() {
             }
         } else {
             character_stop(&character);
-        }*/
+        }
 
         /* Check for jumping */
-        /*if (button_pressed(BUTTON_A)) {
+        if (button_pressed(BUTTON_A)) {
             character_jump(&character);
-            update_jump(&character.jumps);
         }
-        }*/
-        handle_button_presses(&character);
 
         /* Background transition logic */
         if (currentBackground == 0 && character.x >= (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH - character.border)) {
@@ -999,7 +691,7 @@ int main() {
         /* shift back into bitmap mode for image display */
         *display_control = MODE3 | BG2;
         /* three jumps remaining */
-        if(character.jumps == 3 && game_win){ 
+        if(jump_counter == 3 && game_win){ 
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, F_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1007,7 +699,7 @@ int main() {
             }
         }
         /*two remaining jumps */
-        else if(character.jumps == 2 && game_win){
+        else if(jump_counter == 2 && game_win){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, D_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1015,7 +707,7 @@ int main() {
             }
         } 
         /*one remaining jump */
-        else if(character.jumps == 1 && game_win){
+        else if(jump_counter == 1 && game_win){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, C_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1023,7 +715,7 @@ int main() {
             }
         }
         /* level was completed, but no jumps remain */
-        else if(character.jumps == 0 && game_win){
+        else if(jump_counter == 0 && game_win){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, B_GRADE_data[row * SCREEN_WIDTH + col]);
