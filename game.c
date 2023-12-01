@@ -708,12 +708,24 @@ void character_update(struct Character* character, int xscroll) {
 
     /* determine the bottom of the character sprite for collision detection */
     int character_bottom_y = character->y + CHARACTER_SPRITE_HEIGHT;
+
     /* check which tile the character's bottom is over */
-    unsigned short tile = tile_lookup(character->x + 8, character_bottom_y + 10, xscroll, 0, background,
+
+    unsigned short background_tile = tile_lookup(character->x + 8, character_bottom_y + 1 , xscroll, 0, background,
                                       background_width, background_height);
 
+    unsigned short tile = tile_lookup(character->x + 8, character_bottom_y + 1, xscroll, 0, foreground,
+                                      foreground_width, foreground_height);
+
     /* if it's a solid tile */
-    if (tile == 0) {        /* stop the fall! */
+    if ((tile >= 36 & tile <= 41) |
+	(tile >= 64 & tile <= 69) |
+	(tile == 92 & tile == 93) |
+	(tile == 96 | tile == 97) |
+	(tile >= 112 & tile <= 117) |
+	(background_tile == 0) |
+	(background_tile == 1))
+        {        /* stop the fall! */
         character->falling = 0;
         character->yvel = 0;
 
@@ -738,6 +750,7 @@ void character_update(struct Character* character, int xscroll) {
     }
 
     /* set on-screen position */
+ 
     sprite_position(character->sprite, character->x, character->y);
 }
 
@@ -980,7 +993,6 @@ int main() {
             update_jump(&character.jumps);
         }
         }*/
-        check_game_status(&character.jumps, &game_win);
         handle_button_presses(&character);
 
         /* Background transition logic */
