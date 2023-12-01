@@ -199,6 +199,8 @@ void memcpy16_dma(unsigned short* dest, unsigned short* source, int amount) {
     *dma_destination = (unsigned int) dest;
     *dma_count = amount | DMA_16 | DMA_ENABLE;
 }
+
+
 /* the global interrupt enable register */
 volatile unsigned short* interrupt_enable = (unsigned short*) 0x4000208;
 
@@ -271,12 +273,12 @@ void setup_background() {
         (24 << 8) |
         (1 << 13) |
         (0 << 14);
-    memcpy16_dma((unsigned short*) screen_block(24), (unsigned short*) foreground, foreground_width * foreground_height);
+    memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) foreground, foreground_width * foreground_height);
 }
 
 void setup_background2() {
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background2, background2_width * background2_height);
-    memcpy16_dma((unsigned short*) screen_block(24), (unsigned short*) foreground2, foreground2_width * foreground2_height);
+    memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) foreground2, foreground2_width * foreground2_height);
 
 }
 
@@ -627,8 +629,11 @@ void character_stop(struct Character* character) {
 
 /* start the koopa jumping, unless already fgalling */
 void character_jump(struct Character* character) {
-//    if (!character->falling) {
-//        character->yvel = -1350;
+   // if (!character->falling) {
+     //   character->yvel = -1350;
+       // character->falling = 1;
+       // character->jumps--;
+   // }
 //        character->falling = 1;
 //        character->jumps = useJump(character->jumps);
 //    }
