@@ -256,7 +256,7 @@ void setup_background() {
             (tiles_width * tiles_height) / 2);
 
     /* set all control the bits in this register */
-    *bg0_control = 0 |    /* priority, 0 is highest, 3 is lowest */
+    *bg0_control = 1 |    /* priority, 0 is highest, 3 is lowest */
         (0 << 2)  |       /* the char block the image data is stored in */
         (0 << 6)  |       /* the mosaic flag */
         (1 << 7)  |       /* color mode, 0 is 16 colors, 1 is 256 colors */
@@ -266,14 +266,15 @@ void setup_background() {
 
     /* load the tile data into screen block 16 */
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background, background_width * background_height);
+
     *bg1_control = 0 |
         (0 << 2) |
         (0 << 6) |
         (1 << 7) |
-        (24 << 8) |
+        (15 << 8) |
         (1 << 13) |
         (0 << 14);
-    memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) foreground, foreground_width * foreground_height);
+    memcpy16_dma((unsigned short*) screen_block(15), (unsigned short*) foreground, foreground_width * foreground_height);
 }
 
 void setup_background2() {
