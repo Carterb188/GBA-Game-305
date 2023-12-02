@@ -550,10 +550,10 @@ struct Character {
 /* initialize the koopa */
 void character_init(struct Character* character) {
     character->x = 0;
-    character->y = 15;
-    character->jumps = 6;
+    character->y = 0;
+    character->jumps = 10;
     character->yvel = 0;
-    character->gravity = 1;
+    character->gravity = 1.98;
     character->border = 0;
     character->frame = 0;
     character->move = 0;
@@ -564,8 +564,8 @@ void character_init(struct Character* character) {
     character->jumps = 10;
     character->hvel = 0;
     character->hspWalk = 8;
-    character->vspJump = -24;
-    character->mvsp = 24;
+    character->vspJump = -18;
+    character->mvsp = 15;
     character->mhsp = 16;
     character->sd = 1;
 }
@@ -1029,7 +1029,10 @@ int main() {
 
         /* Update character and scroll */
         character_update(&character, currentBackground == 0 ? xscroll1 : xscroll2, currentBackground);
-
+        if (character.x + CHARACTER_SPRITE_WIDTH >= SCREEN_WIDTH) {
+    game_win = 1; // Set game win condition
+    break; // Exit the loop to end the game
+}
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
         *bg0_x_scroll = currentBackground == 0 ? xscroll1 : xscroll2;
@@ -1043,7 +1046,7 @@ int main() {
         /* shift back into bitmap mode for image display */
         *display_control = MODE3 | BG2;
         /* three jumps remaining */
-        if(character.jumps == 3 && game_win){ 
+        if(character.jumps >= 3 && game_win){ 
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, F_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1051,7 +1054,7 @@ int main() {
             }
         }
         /*two remaining jumps */
-        else if(character.jumps == 2 && game_win){
+        else if(character.jumps >= 2 && game_win){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, D_GRADE_data[row * SCREEN_WIDTH + col]);
