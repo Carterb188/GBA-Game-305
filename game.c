@@ -279,7 +279,7 @@ void setup_background() {
 
 void setup_background2() {
     memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) background2, background2_width * background2_height);
-    memcpy16_dma((unsigned short*) screen_block(16), (unsigned short*) foreground2, foreground2_width * foreground2_height);
+    memcpy16_dma((unsigned short*) screen_block(15), (unsigned short*) foreground2, foreground2_width * foreground2_height);
 
 }
 
@@ -699,7 +699,7 @@ unsigned short tile_lookup(int x, int y, int xscroll, int yscroll,
 
 /* update the koopa */
 /* update the character */
-void character_update(struct Character* character, int xscroll) {
+void character_update(struct Character* character, int xscroll, int currentBackground) {
     /* update y position and speed if falling */
     if (character->falling) {
         character->y += (character->yvel >> 8);
@@ -711,11 +711,24 @@ void character_update(struct Character* character, int xscroll) {
 
     /* check which tile the character's bottom is over */
 
-    unsigned short background_tile = tile_lookup(character->x + 8, character_bottom_y + 1 , xscroll, 0, background,
-                                      background_width, background_height);
 
-    unsigned short tile = tile_lookup(character->x + 8, character_bottom_y + 1, xscroll, 0, foreground,
-                                      foreground_width, foreground_height);
+    unsigned short background_tile;
+    unsigned short tile;
+
+
+
+    if(currentBackground == 0){
+    	background_tile = tile_lookup(character->x + 8, character_bottom_y , xscroll, 0, background,
+                                      background_width, background_height);
+			
+    	tile = tile_lookup(character->x + 8, character_bottom_y, xscroll, 0, foreground,
+			                             foreground_width, foreground_height);
+    }else{
+	background_tile = tile_lookup(character->x + 8, character_bottom_y , xscroll, 0, background2,
+                                      background2_width, background2_height);		
+    	tile = tile_lookup(character->x + 8, character_bottom_y, xscroll, 0, foreground2,
+			                           foreground2_width, foreground2_height);
+    }
 
     /* if it's a solid tile */
     if ((tile >= 36 & tile <= 41) |
@@ -730,7 +743,7 @@ void character_update(struct Character* character, int xscroll) {
         character->yvel = 0;
 
         /* align the character's bottom with the top of the tile */
-                character->y = ((character_bottom_y >> 3) << 3) - CHARACTER_SPRITE_HEIGHT;
+         character->y &= ~0x3;
     } else {
         /* the character is falling */
         character->falling = 1;
@@ -1015,7 +1028,7 @@ int main() {
         }
 
         /* Update character and scroll */
-        character_update(&character, currentBackground == 0 ? xscroll1 : xscroll2);
+        character_update(&character, currentBackground == 0 ? xscroll1 : xscroll2, currentBackground);
 
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
