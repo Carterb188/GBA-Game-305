@@ -771,7 +771,8 @@ void put_pixel(int row, int col, unsigned short color) {
     screen[row * SCREEN_WIDTH + col] = color;
 }
 int update_jump(int *jumps);
-int jumps_remaining = 3;
+int jumps_remaining = 10;
+int check_game_status(int* jumps_remaining, int* game_win);
 /* this function is called each vblank to get the timing of sounds right */
 void on_vblank() {
     /* disable interrupts for now and save current state of interrupt */
@@ -1001,13 +1002,12 @@ int main() {
         }*/
 
         /* Check for jumping */
-        /*if (button_pressed(BUTTON_A)) {
+        if (button_pressed(BUTTON_A)) {
             character_jump(&character);
             update_jump(&character.jumps);
         }
-        }*/
         handle_button_presses(&character);
-
+        int status = check_game_status(&character.jumps, &game_win);
         /* Background transition logic */
         if (currentBackground == 0 && character.x >= (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH - character.border)) {
             // Transition to the second background
@@ -1037,10 +1037,9 @@ int main() {
 
         /* delay some */
         delay(300);
-    }
-    
+   } 
     /*end screen area*/
-    while(1) {
+    while (1) {
         /* shift back into bitmap mode for image display */
         *display_control = MODE3 | BG2;
         /* three jumps remaining */
