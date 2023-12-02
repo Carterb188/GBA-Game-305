@@ -2,7 +2,6 @@
  * collide.c
  * program which demonstrates sprites colliding with tiles
  */
-int useJump(int a);
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 160
 #define SOLID_TILE_INDEX 10
@@ -64,7 +63,7 @@ volatile unsigned short* screen = (volatile unsigned short*) 0x6000000;
 
 /* jump counter and game win variables that control which end screen pops up */
 int jump_counter = 0;
-int game_win = 1;
+int game_win = 0;
 
 /* flags to set sprite handling in display control register */
 #define SPRITE_MAP_2D 0x0
@@ -629,18 +628,9 @@ void character_stop(struct Character* character) {
 }
 
 /* start the koopa jumping, unless already fgalling */
-void character_jump(struct Character* character) {
-   // if (!character->falling) {
-     //   character->yvel = -1350;
-       // character->falling = 1;
-       // character->jumps--;
-   // }
-//        character->falling = 1;
-//        character->jumps = useJump(character->jumps);
-//    }
-}
+void character_jump(struct Character* character) {}
 
-/* finds which tile a screen coordinate maps to, taking scroll into acco  unt */
+
 unsigned short tile_lookup(int x, int y, int xscroll, int yscroll,
         const unsigned short* tilemap, int tilemap_w, int tilemap_h) {
 
@@ -771,7 +761,7 @@ void put_pixel(int row, int col, unsigned short color) {
     screen[row * SCREEN_WIDTH + col] = color;
 }
 int update_jump(int *jumps);
-int jumps_remaining = 10;
+int jumps_remaining = 3;
 int check_game_status(int* jumps_remaining, int* game_win);
 /* this function is called each vblank to get the timing of sounds right */
 void on_vblank() {
@@ -1002,11 +992,15 @@ int main() {
         }*/
 
         /* Check for jumping */
+        handle_button_presses(&character);
+        if (currentBackground == 1 && character.x >= (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH)) {
+            game_win = 1;
+            break; // Exit the game loop
+        }
         if (button_pressed(BUTTON_A)) {
             character_jump(&character);
             update_jump(&character.jumps);
         }
-        handle_button_presses(&character);
         int status = check_game_status(&character.jumps, &game_win);
         /* Background transition logic */
         if (currentBackground == 0 && character.x >= (SCREEN_WIDTH - CHARACTER_SPRITE_WIDTH - character.border)) {
@@ -1029,10 +1023,6 @@ int main() {
 
         /* Update character and scroll */
         character_update(&character, currentBackground == 0 ? xscroll1 : xscroll2, currentBackground);
-        if (character.x + CHARACTER_SPRITE_WIDTH >= SCREEN_WIDTH) {
-    game_win = 1; // Set game win condition
-    break; // Exit the loop to end the game
-}
         /* wait for vblank before scrolling and moving sprites */
         wait_vblank();
         *bg0_x_scroll = currentBackground == 0 ? xscroll1 : xscroll2;
@@ -1046,7 +1036,7 @@ int main() {
         /* shift back into bitmap mode for image display */
         *display_control = MODE3 | BG2;
         /* three jumps remaining */
-        if(character.jumps >= 3 && game_win){ 
+        if(character.jumps >= 3){ 
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, F_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1054,7 +1044,7 @@ int main() {
             }
         }
         /*two remaining jumps */
-        else if(character.jumps >= 2 && game_win){
+        else if(character.jumps >= 2){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, D_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1062,7 +1052,7 @@ int main() {
             }
         } 
         /*one remaining jump */
-        else if(character.jumps == 1 && game_win){
+        else if(character.jumps == 1){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, C_GRADE_data[row * SCREEN_WIDTH + col]);
@@ -1070,7 +1060,7 @@ int main() {
             }
         }
         /* level was completed, but no jumps remain */
-        else if(character.jumps == 0 && game_win){
+        else if(character.jumps == 0){
             for(int row = 0; row < SCREEN_HEIGHT; row++){
                 for(int col = 0; col < SCREEN_WIDTH; col++){
                     put_pixel(row, col, B_GRADE_data[row * SCREEN_WIDTH + col]);
